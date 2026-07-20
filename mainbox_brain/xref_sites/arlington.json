@@ -1,0 +1,46 @@
+{
+  "url": "https://www.aifittings.com/reference/cross-reference",
+  "steps": {
+    "col_competitor": {
+      "kind": "cell",
+      "selector": "table#resultsTable > tbody:nth-of-type(1) > tr:nth-of-type(1) > td:nth-of-type(2)",
+      "tag": "td",
+      "inputType": "",
+      "text": "100",
+      "placeholder": "",
+      "colIndex": 1,
+      "tableSelector": "#resultsTable",
+      "cellText": "100"
+    },
+    "col_manufacturer": {
+      "kind": "cell",
+      "selector": "table#resultsTable > tbody:nth-of-type(1) > tr:nth-of-type(1) > td:nth-of-type(1)",
+      "tag": "td",
+      "inputType": "",
+      "text": "Topaz",
+      "placeholder": "",
+      "colIndex": 0,
+      "tableSelector": "#resultsTable",
+      "cellText": "Topaz"
+    },
+    "col_equivalent": {
+      "kind": "cell",
+      "selector": "table#resultsTable > tbody:nth-of-type(1) > tr:nth-of-type(1) > td:nth-of-type(3)",
+      "tag": "td",
+      "inputType": "",
+      "text": "850",
+      "placeholder": "",
+      "colIndex": 2,
+      "tableSelector": "#resultsTable",
+      "cellText": "850"
+    }
+  },
+  "version": "0.1.8",
+  "name": "Arlington",
+  "slug": "arlington",
+  "search_url_pattern": "https://www.aifittings.com/reference/cross-reference?m={mfr}&id={part}",
+  "search_url_encode": false,
+  "mfr_required": true,
+  "mfr_in_url": true,
+  "search_mode": "url"
+}

@@ -1,0 +1,111 @@
+{
+  "url": "https://tools.se.app/xref/v3/public/prod/v3-1/index.html?lang=EN_US",
+  "steps": {
+    "search_input": {
+      "kind": "field",
+      "selector": "#free-solo-with-text-demo",
+      "tag": "input",
+      "inputType": "text",
+      "text": "BR130",
+      "placeholder": "Search for a Schneider Electric or competitor part number"
+    },
+    "submit": {
+      "kind": "button",
+      "selector": "div.MuiGrid-root:nth-of-type(3) > div.MuiGrid-root:nth-of-type(1) > div.MuiGrid-root:nth-of-type(2) > div:nth-of-type(1) > div.input_search_box:nth-of-type(1) > button.MuiButtonBase-root:nth-of-type(1)",
+      "tag": "button",
+      "inputType": "button",
+      "text": "",
+      "placeholder": ""
+    },
+    "col_competitor": {
+      "kind": "cell",
+      "selector": "tr.MuiTableRow-root:nth-of-type(1) > td.MuiTableCell-root:nth-of-type(1) > div.clearfloat:nth-of-type(1) > div.floatLeft:nth-of-type(1) > div:nth-of-type(1) > p.mb-0:nth-of-type(1)",
+      "tag": "p",
+      "inputType": "",
+      "text": "BR130",
+      "placeholder": "",
+      "colIndex": 0,
+      "tableSelector": "div.MuiPaper-root:nth-of-type(1) > div.jss28:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > table.MuiTable-root:nth-of-type(1)",
+      "cellText": "BR130\n\nCUTLER-HAMMER (EATON)\n\nMINIATURE CIRCUIT BREAKER 120/"
+    },
+    "col_manufacturer": {
+      "kind": "cell",
+      "selector": "tr.MuiTableRow-root:nth-of-type(1) > td.MuiTableCell-root:nth-of-type(1) > div.clearfloat:nth-of-type(1) > div.floatLeft:nth-of-type(1) > div:nth-of-type(1) > p.mb-0:nth-of-type(2)",
+      "tag": "p",
+      "inputType": "",
+      "text": "CUTLER-HAMMER (EATON)",
+      "placeholder": "",
+      "colIndex": 0,
+      "tableSelector": "div.MuiPaper-root:nth-of-type(1) > div.jss28:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > table.MuiTable-root:nth-of-type(1)",
+      "cellText": "BR130\n\nCUTLER-HAMMER (EATON)\n\nMINIATURE CIRCUIT BREAKER 120/"
+    },
+    "col_equivalent": {
+      "kind": "cell",
+      "selector": "tr.MuiTableRow-root:nth-of-type(1) > td.MuiTableCell-root:nth-of-type(2) > div.category:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > p.sky-txt:nth-of-type(1)",
+      "tag": "p",
+      "inputType": "",
+      "text": "HOM130",
+      "placeholder": "",
+      "colIndex": 1,
+      "tableSelector": "div.MuiPaper-root:nth-of-type(1) > div.jss28:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > table.MuiTable-root:nth-of-type(1)",
+      "cellText": "HOM130\n\nMini circuit breaker, Homeline, 30A, 1 pole, 120/240"
+    },
+    "col_description": {
+      "kind": "cell",
+      "selector": "tr.MuiTableRow-root:nth-of-type(1) > td.MuiTableCell-root:nth-of-type(2) > div.category:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > p.mb-5:nth-of-type(2)",
+      "tag": "p",
+      "inputType": "",
+      "text": "Mini circuit breaker, Homeline, 30A, 1 pole, 120/240VAC, 10k",
+      "placeholder": "",
+      "colIndex": 1,
+      "tableSelector": "div.MuiPaper-root:nth-of-type(1) > div.jss28:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > table.MuiTable-root:nth-of-type(1)",
+      "cellText": "HOM130\n\nMini circuit breaker, Homeline, 30A, 1 pole, 120/240"
+    },
+    "col_stock": {
+      "kind": "cell",
+      "selector": "tbody.MuiTableBody-root:nth-of-type(1) > tr.MuiTableRow-root:nth-of-type(1) > td.MuiTableCell-root:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1)",
+      "tag": "div",
+      "inputType": "",
+      "text": "Stock: Normally stocked",
+      "placeholder": "",
+      "colIndex": 2,
+      "tableSelector": "div.MuiPaper-root:nth-of-type(1) > div.jss28:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > table.MuiTable-root:nth-of-type(1)",
+      "cellText": "Stock: Normally stocked\nPrice: 26.30$\nDiscount Schedule: DE3"
+    },
+    "col_price": {
+      "kind": "cell",
+      "selector": "tbody.MuiTableBody-root:nth-of-type(1) > tr.MuiTableRow-root:nth-of-type(1) > td.MuiTableCell-root:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2)",
+      "tag": "div",
+      "inputType": "",
+      "text": "Price: 26.30$",
+      "placeholder": "",
+      "colIndex": 2,
+      "tableSelector": "div.MuiPaper-root:nth-of-type(1) > div.jss28:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > table.MuiTable-root:nth-of-type(1)",
+      "cellText": "Stock: Normally stocked\nPrice: 26.30$\nDiscount Schedule: DE3"
+    },
+    "col_notes": {
+      "kind": "cell",
+      "selector": "tbody.MuiTableBody-root:nth-of-type(1) > tr.MuiTableRow-root:nth-of-type(1) > td.MuiTableCell-root:nth-of-type(4) > div:nth-of-type(1) > div:nth-of-type(1) > p:nth-of-type(1)",
+      "tag": "p",
+      "inputType": "",
+      "text": "MINIATURE CIRCUIT BREAKER 120/240V, 30A",
+      "placeholder": "",
+      "colIndex": 3,
+      "tableSelector": "div.MuiPaper-root:nth-of-type(1) > div.jss28:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > table.MuiTable-root:nth-of-type(1)",
+      "cellText": "MINIATURE CIRCUIT BREAKER 120/240V, 30A"
+    },
+    "next_page": {
+      "kind": "button",
+      "selector": "tr.MuiTableRow-root:nth-of-type(1) > td.MuiTableCell-root:nth-of-type(1) > div.MuiToolbar-root:nth-of-type(1) > div.jss30:nth-of-type(3) > span:nth-of-type(4) > button.MuiButtonBase-root:nth-of-type(1)",
+      "tag": "button",
+      "inputType": "button",
+      "text": "",
+      "placeholder": ""
+    }
+  },
+  "version": "0.1.5",
+  "name": "Schneider",
+  "slug": "schneider",
+  "search_mode": "field",
+  "visibility": "new_headless"
+}

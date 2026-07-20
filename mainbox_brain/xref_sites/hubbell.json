@@ -1,0 +1,77 @@
+{
+  "url": "https://www.hubbell.com/hubbell/en/part-cross-reference",
+  "steps": {
+    "search_input": {
+      "kind": "field",
+      "selector": "div#crossReferenceModule > div.moduleBody:nth-of-type(1) > div.manualSearchForm:nth-of-type(1) > input.form-control:nth-of-type(1)",
+      "tag": "input",
+      "inputType": "",
+      "text": "CRA-6",
+      "placeholder": "Competitor Part No"
+    },
+    "submit": {
+      "kind": "button",
+      "selector": "div#crossReferenceModule > div.moduleBody:nth-of-type(1) > div.manualSearchForm:nth-of-type(1) > div.buttonContainer:nth-of-type(4) > button.btn:nth-of-type(2)",
+      "tag": "button",
+      "inputType": "button",
+      "text": "SEARCH",
+      "placeholder": ""
+    },
+    "col_competitor": {
+      "kind": "cell",
+      "selector": "div.table-component:nth-of-type(1) > div.table-responsive:nth-of-type(1) > table.table:nth-of-type(1) > tbody:nth-of-type(1) > tr:nth-of-type(1) > td:nth-of-type(2)",
+      "tag": "td",
+      "inputType": "",
+      "text": "CRA-600L",
+      "placeholder": "",
+      "colIndex": 1,
+      "tableSelector": "div:nth-of-type(1) > div:nth-of-type(2) > div.p-0:nth-of-type(1) > div.table-component:nth-of-type(1) > div.table-responsive:nth-of-type(1) > table.table:nth-of-type(1)",
+      "cellText": "CRA-600L"
+    },
+    "col_manufacturer": {
+      "kind": "cell",
+      "selector": "div.table-component:nth-of-type(1) > div.table-responsive:nth-of-type(1) > table.table:nth-of-type(1) > tbody:nth-of-type(1) > tr:nth-of-type(1) > td.manufacturerName:nth-of-type(1)",
+      "tag": "td",
+      "inputType": "",
+      "text": "ILSCO",
+      "placeholder": "",
+      "colIndex": 0,
+      "tableSelector": "div:nth-of-type(1) > div:nth-of-type(2) > div.p-0:nth-of-type(1) > div.table-component:nth-of-type(1) > div.table-responsive:nth-of-type(1) > table.table:nth-of-type(1)",
+      "cellText": "ILSCO"
+    },
+    "col_equivalent": {
+      "kind": "cell",
+      "selector": "div.table-component:nth-of-type(1) > div.table-responsive:nth-of-type(1) > table.table:nth-of-type(1) > tbody:nth-of-type(1) > tr:nth-of-type(1) > td:nth-of-type(4)",
+      "tag": "td",
+      "inputType": "",
+      "text": "YA36\nClick for more info",
+      "placeholder": "",
+      "colIndex": 3,
+      "tableSelector": "div:nth-of-type(1) > div:nth-of-type(2) > div.p-0:nth-of-type(1) > div.table-component:nth-of-type(1) > div.table-responsive:nth-of-type(1) > table.table:nth-of-type(1)",
+      "cellText": "YA36\nClick for more info"
+    },
+    "col_description": {
+      "kind": "cell",
+      "selector": "div.table-component:nth-of-type(1) > div.table-responsive:nth-of-type(1) > table.table:nth-of-type(1) > tbody:nth-of-type(1) > tr:nth-of-type(1) > td.productName:nth-of-type(5)",
+      "tag": "td",
+      "inputType": "",
+      "text": "YA36, 600 kcmil, CU, 1 Hole, 5/8 Stud, Long Barrel",
+      "placeholder": "",
+      "colIndex": 4,
+      "tableSelector": "div:nth-of-type(1) > div:nth-of-type(2) > div.p-0:nth-of-type(1) > div.table-component:nth-of-type(1) > div.table-responsive:nth-of-type(1) > table.table:nth-of-type(1)",
+      "cellText": "YA36, 600 kcmil, CU, 1 Hole, 5/8 Stud, Long Barrel"
+    },
+    "next_page": {
+      "kind": "button",
+      "selector": "div.table-component:nth-of-type(1) > nav.tablePagination:nth-of-type(2) > div.container:nth-of-type(1) > ul.pagination:nth-of-type(1) > li.nextPage:nth-of-type(3) > a.page-link:nth-of-type(1)",
+      "tag": "a",
+      "inputType": "",
+      "text": "\u203a\nNext",
+      "placeholder": ""
+    }
+  },
+  "version": "0.1.5",
+  "name": "Hubbell",
+  "slug": "hubbell",
+  "search_mode": "field"
+}

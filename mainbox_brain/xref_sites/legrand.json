@@ -1,0 +1,35 @@
+{
+  "url": "https://www.legrand.us/tools/product-cross-reference/search",
+  "steps": {
+    "col_competitor": {
+      "kind": "cell",
+      "selector": "div.search-results:nth-of-type(1) > div.column-right:nth-of-type(2) > div.crossref-list:nth-of-type(7) > div.match-record:nth-of-type(1) > div.match-data:nth-of-type(2) > p.match-sku:nth-of-type(2)",
+      "tag": "p",
+      "inputType": "",
+      "text": "SKU: DR20WHI | Hubbell",
+      "placeholder": ""
+    },
+    "col_equivalent": {
+      "kind": "cell",
+      "selector": "div.search-results:nth-of-type(1) > div.column-right:nth-of-type(2) > div.crossref-list:nth-of-type(7) > div.match-record:nth-of-type(1) > div.match-data:nth-of-type(2) > div.match-sku-bold:nth-of-type(1)",
+      "tag": "div",
+      "inputType": "",
+      "text": "SKU: 26352W | Pass & Seymour",
+      "placeholder": ""
+    },
+    "col_description": {
+      "kind": "cell",
+      "selector": "div.search-results:nth-of-type(1) > div.column-right:nth-of-type(2) > div.crossref-list:nth-of-type(7) > div.match-record:nth-of-type(1) > div.match-data:nth-of-type(2) > p.match-name:nth-of-type(1)",
+      "tag": "p",
+      "inputType": "",
+      "text": "20A 125V Heavy Duty Specification Grade Decorator Duplex Rec",
+      "placeholder": ""
+    }
+  },
+  "version": "0.1.8",
+  "name": "Legrand",
+  "slug": "legrand",
+  "search_url_pattern": "https://www.legrand.us/tools/product-cross-reference/search?competitorBrand=&text={part}",
+  "search_url_encode": false,
+  "search_mode": "url"
+}

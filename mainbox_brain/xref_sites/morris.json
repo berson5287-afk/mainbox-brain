@@ -1,0 +1,55 @@
+{
+  "url": "https://morrisproducts.com/comp_sku_ref_list.asp",
+  "steps": {
+    "col_competitor": {
+      "kind": "cell",
+      "selector": "tr#A2F19FCCD3454745B54C0C4A6BAA1CB90 > td.tablesaw-priority-2:nth-of-type(2)",
+      "tag": "td",
+      "inputType": "",
+      "text": "GTA-0-0",
+      "placeholder": "",
+      "colIndex": 1,
+      "tableSelector": "#ddtTable_A2F19FCCD3454745B54C0C4A6BAA1CB9",
+      "cellText": "GTA-0-0"
+    },
+    "col_manufacturer": {
+      "kind": "cell",
+      "selector": "tr#A2F19FCCD3454745B54C0C4A6BAA1CB90 > td.tablesaw-priority-1:nth-of-type(1)",
+      "tag": "td",
+      "inputType": "",
+      "text": "Ilsco",
+      "placeholder": "",
+      "colIndex": 0,
+      "tableSelector": "#ddtTable_A2F19FCCD3454745B54C0C4A6BAA1CB9",
+      "cellText": "Ilsco"
+    },
+    "col_equivalent": {
+      "kind": "cell",
+      "selector": "tr#A2F19FCCD3454745B54C0C4A6BAA1CB90 > td.tablesaw-priority-4:nth-of-type(4)",
+      "tag": "td",
+      "inputType": "",
+      "text": "91014",
+      "placeholder": "",
+      "colIndex": 3,
+      "tableSelector": "#ddtTable_A2F19FCCD3454745B54C0C4A6BAA1CB9",
+      "cellText": "91014"
+    },
+    "col_description": {
+      "kind": "cell",
+      "selector": "tr#A2F19FCCD3454745B54C0C4A6BAA1CB90 > td.tablesaw-priority-3:nth-of-type(3)",
+      "tag": "td",
+      "inputType": "",
+      "text": "Aluminum Parallel Tee Tap Connectors 1/0",
+      "placeholder": "",
+      "colIndex": 2,
+      "tableSelector": "#ddtTable_A2F19FCCD3454745B54C0C4A6BAA1CB9",
+      "cellText": "Aluminum Parallel Tee Tap Connectors 1/0"
+    }
+  },
+  "version": "0.1.5",
+  "name": "Morris",
+  "slug": "morris",
+  "search_url_pattern": "https://morrisproducts.com/comp_sku_ref_list.asp?s={part}&sField=searchall&ddtloaded=1&rpp=&pagesize=&search2=((searchlike~pcr.competitor_nm~{part}%7COR%7Csearchlike~pcr.competitor_sku~{part}%7COR%7Csearchlike~p.sku~{part}))&page=1&ddt=1",
+  "search_url_encode": false,
+  "search_mode": "url"
+}
