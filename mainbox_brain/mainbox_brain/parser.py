@@ -90,7 +90,7 @@ def _parse_one(fragment: str) -> Optional[LineItem]:
     spec: dict = {}
     nn = _AWG_CONDUCTORS.search(product)
     if nn:
-        if category in (Category.MC_CABLE, Category.BUILDING_WIRE, Category.WIRE_CABLE):
+        if Category.group_of(category) == "wire_cable":
             spec["awg"], spec["conductors"] = nn.group("awg"), nn.group("cond")
         else:
             # e.g. "3/4 EMT" -> trade size, not gauge

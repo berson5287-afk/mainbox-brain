@@ -21,16 +21,25 @@ from typing import Optional
 # Coarse buckets the parser maps products into and the resolver matches on.
 # Extend freely; the catalog and keyword map (catalog.py) drive everything.
 class Category:
+    """v0.11: categories are the FINE ids from material_rules.json (42 of them,
+    e.g. conduit_emt, fittings_rigid, circuit_breakers) grouped into 9 groups.
+    The constants below are kept for code that checks a coarse family; use
+    Category.group_of(cat) to compare at group level."""
     MC_CABLE = "mc_cable"
     BUILDING_WIRE = "building_wire"
-    WIRE_CABLE = "wire_cable"          # generic / unknown wire
-    CONDUIT = "conduit"
-    FITTINGS = "fittings"
-    GEAR = "gear"                      # panels, breakers, switchgear, meter sockets
-    TRANSFORMER = "transformer"
-    BOXES = "boxes_enclosures"
-    LIGHTING = "lighting"
+    WIRE_CABLE = "wire_cable"          # group id: any wire/cable
+    CONDUIT = "raceway"                # group id (legacy value "conduit" still mapped)
+    FITTINGS = "fittings"              # group id
+    GEAR = "gear"                      # group id: panels, breakers, switchgear, meter sockets
+    TRANSFORMER = "transformers"
+    BOXES = "boxes_enclosures"         # group id
+    LIGHTING = "lighting"              # group id
     UNKNOWN = "unknown"
+
+    @staticmethod
+    def group_of(category: str) -> str:
+        from . import material
+        return material.group_of(category)
 
 
 @dataclass

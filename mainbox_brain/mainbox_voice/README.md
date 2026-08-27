@@ -1,4 +1,91 @@
-# MaINbox Voice — v0.5.0
+# MaINbox Voice — v0.10.2 · Brain v0.11
+
+## v0.10.2 — server state moved out of OneDrive; alert nudges tamed (2026-08-27)
+`voice_state.json` now lives in `%LOCALAPPDATA%\MaINbox\` (OneDrive held a lock
+on the freshly written file, so every save failed with "Access is denied"). The
+due-follow-up watcher alerts once at due, once an hour later, then daily — it used
+to nudge every hour forever (65 alerts overnight for one open follow-up).
+
+
+## Brain v0.11 — material typing from Steve's own data (2026-08-27)
+The 9-bucket keyword table is gone. A research workflow mined 41K RFQ/reply
+item lines, 34.5K catalog SKUs and 10.9K sent messages into
+`mainbox_brain/material_rules.json` — **42 fine categories in 9 groups**
+(conduit_emt vs conduit_pvc vs conduit_rigid_imc, fittings_emt/rigid/pvc/flex,
+circuit_breakers, panelboards, disconnects, transformers, lugs, grounding,
+wiring devices, lighting fixtures/lamps/controls, low-voltage cable, cord…),
+**479 brand aliases** (Arlington, Bridgeport, Topaz, ILSCO, Burndy, Square D,
+Eaton, Southwire…) and a **curated vendor map** (which domain gets your RFQs
+for which material). Engine: `material_classify.py` — same file and data ship
+in the MaINbox desktop app (`mainbox_material.py`, v4.2.100+) so both type
+material identically. `catalog.category_for_text` delegates to it; the resolver
+qualifies a vendor on exact-category history (≥2 RFQs) or the vendor map, with
+same-family history as a tie-breaker only. Existing records were re-tagged
+(554 of 1,095); the 15-minute auto-refresh re-mines with the new engine.
+Full write-up: `MATERIAL_TAXONOMY_REPORT.md`. To change typing, edit the JSON
+(word-bounded Python regexes, `negative` vetoes, `priority`) and copy it to
+both trees.
+
+
+## v0.10.1 — RFQ follow-up fixes (2026-08-27)
+- **Real contact names.** "Markh at Brazill" is now "Mark Huddle at Brazill":
+  the sent-mail miner only knew the mailbox; vendor *replies* carry the display
+  name, so `Store.refresh_contact_names()` upgrades every mailbox-derived name
+  from the most frequent reply name (runs after every re-mine; 50 fixed today).
+- **Wrong vendors for MC cable.** "mc" matched inside *IMC* conduit and *300
+  MCM*, so one stray RFQ tagged a conduit house as an MC-cable vendor. Short
+  category tokens now need letter boundaries, 52 mis-tagged records were
+  re-tagged, and the resolver needs ≥2 RFQs in a category before history alone
+  qualifies a vendor.
+- **"Set up a draft for Mark"** now drafts. The item is remembered from the
+  Brain's own proposal ("For 10,000ft 122mc I have…"), a draft request with no
+  item asks *"What should I quote from Mark?"* instead of leaking to the Brain,
+  the Brain refuses to "save a contact" without an email, and the contact the
+  Brain just suggested wins over other people at the same company ("thea" →
+  Pipe & Wire Quotes, not a question about 8 Theas).
+- Note: only ONE Brain server should own port 8585 — `start_brain_autosync.bat`
+  is the one that re-mines; don't also run START_MAINBOX.bat's Brain line.
+
+
+## What's new in v0.10.0 — Voice is now an extension of MaINbox
+
+**Show me the reference.** Every price / stock / lead-time answer now carries the
+emails it was built from (the Brain returns `sources`; `reply_records.source_key`
+is the Outlook EntryID and is finally threaded through `store.py` → `intents.py`
+→ `/ask`). The phone shows a tappable **source card** under the answer; say
+*"show me the reference"*, *"show me the email"*, or *"where did that come from"*
+and you get the list again. Tapping opens `/api/mail/view?key=…` — a phone page
+rendered from the **live Outlook item** on the PC (fallback: the JSON export,
+then the mined excerpt) with a button to pop it open in Outlook on the desktop.
+
+**Always saved.** The conversation (bubbles, result rows, source cards, event
+cards), the RFQ you're building (job, vendors, lines, note, the line you were
+typing, edit mode), the Listen transcript, the alert list and the tab you were
+on are all stored on the phone and come back after a reload, a background kill
+or a restart. Saved on every change (debounced) and again the instant the app is
+hidden. Server-side, alerts and the voice session now survive a server restart
+too (`voice_state.json`). *Settings → Clear conversation* wipes the phone copy.
+
+**Follow-ups tab.** A live mirror of MaINbox's follow-up queue (all three lanes),
+synced through MaINbox's own file bridge (`%LOCALAPPDATA%\MaINbox\bridge`,
+MaINbox v4.2.99+). View, snooze (quick or custom), mark complete, edit the note,
+read the linked email, cancel, and create — by form or by voice (*"follow up with
+Thea about the EMT quote tomorrow at 9"*, *"what follow-ups do I have?"*,
+*"what's due today?"*). Every edit is applied **inside MaINbox on its main
+thread**; the phone never writes MaINbox's files. If MaINbox is closed you still
+see the last synced list and your edits are queued until it next opens. A
+watcher thread raises a phone alert when a follow-up comes due (and again an
+hour later if still open); tapping the alert opens the tab.
+
+Also: RFQ card actions no longer throw (`loadRecent` never existed — six call
+sites), confirmed cross-reference rows keep their spec-site `url`, alerts don't
+re-fire as OS notifications on every reload, polling pauses while the app is in
+the background and catches up the moment it's shown, and the service-worker
+cache is bumped to v13. New endpoints: `GET /api/mail/view|get`, `/api/sources`,
+`/api/followups`, `/api/state`; `POST /api/mail/open`, `/api/followups/cmd`
+(`op`: create|snooze|cancel|complete|note). New module: `mbb_ext.py`.
+
+---
 
 Voice-driven phone app for MaINbox Brain, plus a structured RFQ/procurement
 layer. PWA served by a Python server on the Brain PC over Tailscale HTTPS.

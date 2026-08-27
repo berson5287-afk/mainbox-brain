@@ -62,7 +62,7 @@ from collections import deque
 from urllib.parse import urlparse, parse_qs, quote
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-__version__ = "0.9.0"  # call-transcript ingest: /api/call_transcript, alerts with extracted events, last-call recall
+__version__ = "0.10.2"  # state in LOCALAPPDATA, due-nudge backoff; RFQ follow-up fixes (item memory, ask-for-item, real contact names); email references ("show me the email"), MaINbox follow-up sync, durable alerts/session, due-alert watcher
 
 log = logging.getLogger("mbb_voice")
 
@@ -79,6 +79,7 @@ xc = _imp("xref_common")          # parse_query / normalize
 xd = _imp("xref_dispatch")        # cross_reference() / known_sites()
 xr = _imp("cross_reference")      # confirm / reject store
 rmatch = _imp("rfq_match")        # inbound vendor-reply matcher (pure module)
+import mbb_ext                    # v0.10: references, follow-up bridge, durable state
 
 # --- config -------------------------------------------------------------------
 WWW_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "www")
@@ -116,13 +117,48 @@ NOTIFS: deque = deque(maxlen=200)     # {"id","ts","title","body"}
 _NOTIF_ID = [0]
 
 
-def push_notification(title: str, body: str = "") -> dict:
+def push_notification(title: str, body: str = "", kind: str = "",
+                      ref: str = "", url: str = "") -> dict:
     with _state_lock:
         _NOTIF_ID[0] += 1
         n = {"id": _NOTIF_ID[0], "ts": time.time(),
              "title": str(title)[:120], "body": str(body)[:500]}
+        if kind:                      # v0.10: lets the phone route a tap
+            n["kind"] = kind
+        if ref:
+            n["ref"] = ref
+        if url:
+            n["url"] = url
         NOTIFS.append(n)
-        return n
+    _persist_state()
+    return n
+
+
+def _persist_state() -> None:
+    """v0.10: alerts + the voice session survive a server restart."""
+    try:
+        with _state_lock:
+            sess = dict(SESSION)
+            notifs = list(NOTIFS)
+            nid = _NOTIF_ID[0]
+        mbb_ext.state_save(sess, notifs, nid)
+    except Exception as e:  # noqa: BLE001
+        log.warning("persist failed: %s", e)
+
+
+def _restore_state() -> None:
+    d = mbb_ext.state_load()
+    if not d:
+        return
+    with _state_lock:
+        for k, v in (d.get("session") or {}).items():
+            SESSION.setdefault(k, v)
+        for n in d.get("notifs") or []:
+            if isinstance(n, dict) and "id" in n:
+                NOTIFS.append(n)
+        _NOTIF_ID[0] = max(int(d.get("notif_id") or 0),
+                           max((n["id"] for n in NOTIFS), default=0))
+    log.info("restored %d alert(s) + session from voice_state.json", len(NOTIFS))
 
 CALL_DIR = os.path.join(_BASE, "call_transcripts")
 
@@ -1499,6 +1535,15 @@ def _handle_active_rfq(text: str) -> dict | None:
     parsed = _parse_active_rfq(text)
     vendor_names = parsed["vendor_names"]
     item_text = parsed["item_text"]
+    if vendor_names and not item_text:
+        # v0.10.1: we know WHO but not WHAT — ask, instead of letting the
+        # request fall through to the Brain (which once answered "set up a
+        # draft for Mark" by saving a contact with no email).
+        with _state_lock:
+            SESSION["pending_rfq_vendors"] = vendor_names
+        who = " and ".join(vendor_names)
+        msg = f"What should I quote from {who}? Say the quantity and item."
+        return {"reply": msg, "speak": msg, "results": [], "action": "rfq_clarify"}
     if not vendor_names or not item_text:
         return None
     line = parse_rfq_line(item_text)
@@ -1617,7 +1662,7 @@ def _load_contact_aliases() -> dict:
 
 
 def _save_contact_alias(phrase: str, email: str) -> None:
-    """'pipe and wire' -> pipeandwirequotes@theaenterprises.com. Learned from
+    """'pipe and wire' -> quotes@example-vendor.com. Learned from
     explicit teaching or from the user answering a which-one question."""
     a = _load_contact_aliases()
     a[(phrase or "").strip().lower()] = (email or "").strip().lower()
@@ -1666,6 +1711,21 @@ def _brain_answer(text: str) -> dict:
         "The Brain didn't have an answer for that one."
     msg = _clean_brain_reply(msg)   # strip meta-preambles + flag stale dates
 
+    # v0.10: the emails the answer was built from -> source cards on the
+    # phone, and remembered for "show me the reference / email"
+    srcs = d.get("sources") or []
+    if srcs:
+        with _state_lock:
+            SESSION["last_sources"] = srcs
+        out["sources"] = mbb_ext.sources_with_links(srcs, TOKEN)
+
+    # v0.10.1: the Brain's proposal names the item it parsed ("For 10,000ft
+    # 122mc I have ...") — that is the item a follow-up "draft for Mark" means,
+    # even when the question said "on"/"of" instead of "for".
+    mf = re.match(r"\s*For\s+(.+?)\s+I have\s", msg, re.IGNORECASE | re.DOTALL)
+    if mf and parse_rfq_line(mf.group(1)).get("part"):
+        with _state_lock:
+            SESSION["last_priced_item"] = mf.group(1).strip()
     # v0.8.1: when the Brain suggests vendors ("I have X at Y, ... as your
     # vendors"), remember the pairs — a follow-up "draft for mark" should
     # prefer the Mark it just suggested over cold address-book Marks.
@@ -1870,7 +1930,7 @@ def _contact_index() -> dict:
     # history) rank ahead of cold address-book entries with the same name.
     # Produced by export_contacts.py on the Outlook PC.  Gives the resolver
     # real display names ("Dattilo, Nicholas") so "nick at hubbell" lands on
-    # ndattilo@hubbell.com even though that contact never appeared in RFQ
+    # ndattilo@example-vendor.com even though that contact never appeared in RFQ
     # traffic.  Override the path with MBB_CONTACTS.
     _cpath = os.environ.get("MBB_CONTACTS",
                             os.path.join(_BASE, "contacts.json"))
@@ -1921,26 +1981,38 @@ def _resolve_names(names: list[str]) -> dict:
     with _state_lock:
         suggested = list(SESSION.get("suggested_vendors") or [])
 
-    def _sugg_match(entry) -> bool:
-        """entry (email, company, contact) matches a Brain-suggested vendor?"""
+    def _sugg_match(entry) -> int:
+        """entry (email, company, contact) vs the Brain-suggested vendors:
+        2 = the suggested contact itself (name or mailbox matches),
+        1 = same company, loosely similar name, 0 = no. v0.10.1: the old
+        yes/no test let "Wire at Thea" tie with "Pipe & Wire Quotes at Thea"
+        because "wire" sits inside the suggested name -> needless question."""
         em, co, cn = entry
         local = re.sub(r"[^a-z0-9]", "", em.split("@")[0])
         dom = re.sub(r"[^a-z0-9]", "", em.split("@")[-1].split(".")[0])
         con = re.sub(r"[^a-z0-9]", "", (cn or "").lower())
         comp = re.sub(r"[^a-z0-9]", "", (co or "").lower())
+        best = 0
         for sg in suggested:
             sn = re.sub(r"[^a-z0-9]", "", sg["name"].lower())
+            sn_noand = sn.replace("and", "")
             sc = re.sub(r"[^a-z0-9]", "",
                         sg["company"].lower().split()[0]
                         if sg["company"].split() else "")
-            n_ok = len(sn) >= 3 and (sn in local or local in sn
-                                     or sn in con or con and con in sn)
             c_ok = len(sc) >= 4 and (sc in comp or sc in dom
                                      or comp.startswith(sc)
                                      or dom.startswith(sc))
-            if n_ok and c_ok:
-                return True
-        return False
+            if not c_ok or len(sn) < 3:
+                continue
+            strong = (sn == con or sn_noand == con
+                      or sn == local or sn_noand == local.replace("and", "")
+                      or (len(local) >= 4 and sn.startswith(local)))   # markh / Mark Huddle
+            if strong:
+                return 2
+            loose = (sn in con) or (len(con) >= 5 and con in sn)
+            if loose:
+                best = max(best, 1)
+        return best
 
     resolved, ambiguous, unmatched = [], [], []
     for raw_name in names:
@@ -2024,10 +2096,14 @@ def _resolve_names(names: list[str]) -> dict:
         # v0.8.1: the Brain just suggested vendors — if exactly one
         # candidate IS a suggested vendor, that's who the user means
         if len(deduped) > 1 and suggested:
-            sm = [e for e in deduped if _sugg_match(e)]
-            if len(sm) == 1:
+            scored = [(e, _sugg_match(e)) for e in deduped]
+            strong = [e for e, sc in scored if sc == 2]
+            sm = [e for e, sc in scored if sc]
+            if len(strong) == 1:            # the suggested contact itself
+                deduped = strong
+            elif len(sm) == 1:
                 deduped = sm
-            elif sm:                       # several suggested — front of list
+            elif sm:                        # several suggested — front of list
                 deduped = sm + [e for e in deduped if e not in sm]
 
         if not deduped:
@@ -2114,6 +2190,72 @@ def _teach_pair(part_a: str, part_b: str) -> dict:
                 "results": [], "action": "teach"}
 
 
+def _followups_voice_answer(t: str) -> dict:
+    """v0.10: 'what follow-ups do I have / are due' from the MaINbox snapshot."""
+    snap = mbb_ext.followups_snapshot()
+    items = [i for i in snap.get("items") or []
+             if i.get("status") in ("open", "Active", None)]
+    if not snap.get("mainbox_online") and not items:
+        msg = ("MaINbox isn't running on the PC, and I don't have a saved "
+               "follow-up list yet.")
+        return {"reply": msg, "speak": msg, "results": [], "action": "followups"}
+    only_due = bool(re.search(r"\b(due|overdue|today)\b", t))
+    if only_due:
+        cutoff = datetime.now().replace(hour=23, minute=59, second=59)
+        items = [i for i in items if i.get("due") and
+                 i["due"][:19] <= cutoff.isoformat()[:19]]
+    if not items:
+        msg = "Nothing due today." if only_due else "No open follow-ups."
+        return {"reply": msg, "speak": msg, "results": [], "action": "followups",
+                "followups": []}
+    lines = []
+    for i in items[:8]:
+        who = i.get("vendor") or i.get("group") or ""
+        lines.append(f"• {i.get('due_display', '')} — "
+                     f"{(i.get('subject') or i.get('note') or '')[:60]}"
+                     + (f" ({who})" if who else "")
+                     + ("  ⏰ overdue" if i.get("overdue") else ""))
+    head = (f"{len(items)} follow-up{'s' if len(items) != 1 else ''}"
+            + (" due" if only_due else " open") + ":")
+    more = f"\n…and {len(items) - 8} more (see the Follow-ups tab)." if len(items) > 8 else ""
+    n_over = sum(1 for i in items if i.get("overdue"))
+    speak = f"{len(items)} {'due' if only_due else 'open'}"
+    if n_over:
+        speak += f", {n_over} overdue"
+    speak += ". First: " + (items[0].get("subject") or items[0].get("note") or "")[:60] + "."
+    if not snap.get("mainbox_online"):
+        head += "  (MaINbox is offline — showing the last synced list)"
+    return {"reply": head + "\n" + "\n".join(lines) + more, "speak": speak,
+            "results": [], "action": "followups", "followups": items}
+
+
+def _followup_create_voice(note: str, due: datetime) -> dict:
+    """v0.10: create a MaINbox follow-up from a spoken/typed request. If the
+    last answer had an email reference, the follow-up is pinned to it."""
+    with _state_lock:
+        srcs = list(SESSION.get("last_sources") or [])
+    args = {"note": note, "due_at": due.isoformat(timespec="minutes"),
+            "source": "voice"}
+    if srcs and srcs[0].get("key") and re.search(
+            r"\b(this|that|the|their|his|her)\b.*\b(email|quote|reply|price)\b|"
+            r"\b(?:them|him|her)\b", note):
+        args["entry_id"] = srcs[0]["key"]
+        args["subject"] = srcs[0].get("subject") or note
+    res = mbb_ext.followup_command("create_followup", args)
+    when = due.strftime("%a %m/%d %I:%M %p")
+    if res.get("ok") and not res.get("queued"):
+        msg = f"Follow-up set for {when}: {note}"
+        speak = f"Follow-up set for {due.strftime('%A at %I:%M %p')}."
+    elif res.get("queued"):
+        msg = f"Follow-up queued for {when}: {note}\n({res.get('message', '')})"
+        speak = "Queued. It'll land in MaINbox when it's next running."
+    else:
+        msg = f"Couldn't create that follow-up: {res.get('error', 'unknown error')}"
+        speak = "That didn't save."
+    return {"reply": msg, "speak": speak, "results": [], "action": "followup",
+            "followup_result": res}
+
+
 def handle_query(text: str) -> dict:
     """The one brain both typed and spoken input flow through. Returns:
     {reply, speak, results:[{n,src_mfr,equiv_mfr,equiv_part,meta,decided}],
@@ -2175,8 +2317,58 @@ def handle_query(text: str) -> dict:
         return {"reply": "No longer answer stored yet.", "speak":
                 "Nothing to expand yet.", "results": [], "action": "noop"}
 
+    # ---- v0.10: "show me the reference / the email / where did that come from"
+    if re.search(r"\b(?:show|see|view|open|send|give|what(?:'s| is)|where)\b.*"
+                 r"\b(?:reference|references|source|sources|proof|evidence|"
+                 r"the email|that email|those emails|the emails|the quote email|"
+                 r"original email|came from|come from)\b", _t0) \
+            or re.fullmatch(r"(?:reference|source|proof|the email|show email|"
+                            r"show reference|show source)s?\??", _t0):
+        with _state_lock:
+            srcs = list(SESSION.get("last_sources") or [])
+        if not srcs:
+            msg = ("I don't have a reference for the last answer — ask me a "
+                   "price, stock, or lead-time question first and I'll keep "
+                   "the emails it came from.")
+            return {"reply": msg, "speak": msg, "results": [], "action": "sources"}
+        text_out = "Here's where that came from:\n" + mbb_ext.sources_reply_text(srcs) \
+            + "\n\nTap a card to read the email."
+        n = len(srcs)
+        return {"reply": text_out,
+                "speak": f"It came from {n} email{'s' if n != 1 else ''}. "
+                         "Tap a card to read it.",
+                "results": [], "action": "sources",
+                "sources": mbb_ext.sources_with_links(srcs, TOKEN)}
+
+    # ---- v0.10: MaINbox follow-ups by voice ---------------------------------
+    if re.search(r"\b(?:what|which|any|list|show|read)\b.*\bfollow[- ]?ups?\b", _t0) \
+            or re.search(r"\bfollow[- ]?ups?\b.*\b(?:due|today|overdue|open|pending|do i have)\b", _t0) \
+            or re.fullmatch(r"(?:my )?follow[- ]?ups?\??", _t0):
+        return _followups_voice_answer(_t0)
+    _fu = re.match(r"^(?:please\s+)?(?:(?:set|create|add|make|schedule)\s+(?:a\s+)?"
+                   r"follow[- ]?up\s+(?:to|for)?|follow\s*up|remind me to follow up)"
+                   r"\s+((?:on|with|about)\s+.+|.+)$", _t0)
+    if _fu:
+        # keep the preposition: "with Thea about the EMT quote" reads right
+        note, due = mbb_ext.split_note_and_due(_fu.group(1))
+        if due is None:
+            with _state_lock:
+                SESSION["pending_followup_note"] = note
+            msg = f"When should I follow up on \"{note}\"? Say a day and time."
+            return {"reply": msg, "speak": msg, "results": [], "action": "followup"}
+        return _followup_create_voice(note, due)
+    with _state_lock:
+        _pfn = SESSION.get("pending_followup_note")
+    if _pfn:
+        due = mbb_ext.parse_due(_t0)
+        with _state_lock:
+            SESSION.pop("pending_followup_note", None)
+        if due is not None:
+            return _followup_create_voice(_pfn, due)
+        # anything else: fall through as a normal request
+
     # "when I say pipe and wire use pipeandwirequotes@thea..." /
-    # "remember thea is pipeandwirequotes@theaenterprises.com"
+    # "remember thea is quotes@example-vendor.com"
     _al = re.search(r"\b(?:when(?:ever)? i say|call)\s+(.{2,40}?)\s+"
                     r"(?:use|it means|means|is|=)\s+([\w.+-]+@[\w.-]+)\b",
                     text or "", re.IGNORECASE) or \
@@ -2491,6 +2683,17 @@ def handle_query(text: str) -> dict:
     it = xc.parse_query(text or "")
     out["action"] = it.action
 
+    # v0.10.1: answer to "What should I quote from Mark?" — the item alone
+    with _state_lock:
+        _pv = SESSION.get("pending_rfq_vendors")
+    if _pv:
+        with _state_lock:
+            SESSION.pop("pending_rfq_vendors", None)
+        if parse_rfq_line(text or "").get("part") and not _is_active_rfq_request(text):
+            rfq_out = _handle_active_rfq(f"send it to {' and '.join(_pv)} for {text}")
+            if rfq_out:
+                return rfq_out
+
     # v0.7.2: send/draft commands outrank confirm-reject parsing — "no, send
     # it to michelle at brazill" must create a draft, not read as a reject.
     if _is_active_rfq_request(text):
@@ -2688,8 +2891,9 @@ def _meta_for(f) -> str:
 
 
 def _row_public(r: dict) -> dict:
+    # v0.10: keep url so a confirmed row's "Visit spec site" still works
     return {k: r.get(k) for k in
-            ("n", "src_mfr", "equiv_mfr", "equiv_part", "meta", "decided")}
+            ("n", "src_mfr", "equiv_mfr", "equiv_part", "meta", "decided", "url")}
 
 
 # ==============================================================================
@@ -2725,6 +2929,18 @@ class Handler(BaseHTTPRequestHandler):
             # left to send it to. Log one line instead of a crash + traceback.
             log.info("client hung up before the response was sent "
                      "(usually a slow answer); ignoring")
+
+    def _html(self, text: str, code=200):
+        try:
+            body = text.encode("utf-8")
+            self.send_response(code)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            log.info("client hung up before the page was sent; ignoring")
 
     def _authed(self, qs) -> bool:
         tok = self.headers.get("X-MBB-Token") or \
@@ -2801,7 +3017,33 @@ class Handler(BaseHTTPRequestHandler):
                 since = int(qs.get("since", ["0"])[0] or 0)
                 with _state_lock:
                     items = [n for n in NOTIFS if n["id"] > since]
-                return self._json({"notifications": items})
+                    latest = _NOTIF_ID[0]
+                return self._json({"notifications": items, "latest": latest})
+
+            # ---- v0.10: email references ------------------------------------
+            if path == "/api/mail/view":
+                key = qs.get("key", [""])[0]
+                return self._html(mbb_ext.mail_view_html(key, TOKEN, "/"))
+            if path == "/api/mail/get":
+                return self._json(mbb_ext.mail_get(qs.get("key", [""])[0]))
+            if path == "/api/sources":
+                with _state_lock:
+                    srcs = list(SESSION.get("last_sources") or [])
+                return self._json({"sources": mbb_ext.sources_with_links(srcs, TOKEN)})
+
+            # ---- v0.10: MaINbox follow-ups ---------------------------------
+            if path == "/api/followups":
+                return self._json(mbb_ext.followups_snapshot())
+            if path == "/api/state":
+                with _state_lock:
+                    sess = {k: SESSION.get(k) for k in
+                            ("last_priced_item", "brain_pending", "last_xref_part")}
+                    sess["has_sources"] = bool(SESSION.get("last_sources"))
+                    sess["has_results"] = bool(SESSION.get("last"))
+                online, ver = mbb_ext.mainbox_online()
+                return self._json({"ok": True, "version": __version__,
+                                   "session": sess, "mainbox_online": online,
+                                   "mainbox_version": ver})
             if path == "/api/ics":
                 title = qs.get("title", ["Event"])[0]
                 s = qs.get("start", [""])[0]
@@ -2859,7 +3101,9 @@ class Handler(BaseHTTPRequestHandler):
             if not text:
                 return self._json({"error": "text required"}, 400)
             try:
-                return self._json(handle_query(text))
+                out = handle_query(text)
+                _persist_state()          # v0.10: session survives restarts
+                return self._json(out)
             except Exception as e:  # noqa: BLE001
                 log.exception("query failed")
                 return self._json({"reply": f"Server error: {e}",
@@ -2876,8 +3120,37 @@ class Handler(BaseHTTPRequestHandler):
 
         if u.path == "/api/notify":
             n = push_notification(data.get("title", "MaINbox"),
-                                  data.get("body", ""))
+                                  data.get("body", ""),
+                                  kind=str(data.get("kind") or ""),
+                                  ref=str(data.get("ref") or ""),
+                                  url=str(data.get("url") or ""))
             return self._json({"ok": True, "id": n["id"]})
+
+        # ---- v0.10: open the referenced email in Outlook on the PC --------
+        if u.path == "/api/mail/open":
+            return self._json(mbb_ext.mail_open(data.get("key", "")))
+
+        # ---- v0.10: follow-up mutations -> MaINbox (through its bridge) ----
+        if u.path == "/api/followups/cmd":
+            op = str(data.get("op") or "")
+            ops = {"create": "create_followup", "snooze": "snooze_followup",
+                   "cancel": "cancel_followup", "complete": "complete_followup",
+                   "note": "update_followup_note"}
+            if op not in ops:
+                return self._json({"ok": False, "error": f"unknown op {op!r}"}, 400)
+            args = {k: v for k, v in data.items() if k != "op"}
+            if op in ("create", "snooze"):
+                raw = str(args.get("due_at") or args.get("due") or "")
+                due = mbb_ext.parse_due(raw)
+                if due is None:
+                    return self._json({"ok": False,
+                                       "error": "I couldn't read that time"}, 400)
+                args["due_at"] = due.isoformat(timespec="minutes")
+                args.setdefault("label", raw)
+            if op == "create" and not str(args.get("note") or "").strip():
+                return self._json({"ok": False, "error": "note required"}, 400)
+            args.setdefault("source", "phone")
+            return self._json(mbb_ext.followup_command(ops[op], args))
 
         if u.path == "/api/notifications/dismiss":
             nid = int(data.get("id") or 0)
@@ -2885,11 +3158,13 @@ class Handler(BaseHTTPRequestHandler):
                 keep = [n for n in NOTIFS if n["id"] != nid]
                 NOTIFS.clear()
                 NOTIFS.extend(keep)
+            _persist_state()
             return self._json({"ok": True})
 
         if u.path == "/api/notifications/clear":
             with _state_lock:
                 NOTIFS.clear()
+            _persist_state()
             return self._json({"ok": True})
 
         if u.path == "/api/rfq/send":
@@ -3044,6 +3319,8 @@ def main(argv=None) -> int:
         format="%(levelname)s %(message)s")
 
     TOKEN = _load_or_make_token(args.token)
+    _restore_state()                                  # v0.10
+    mbb_ext.DueWatcher(push_notification).start()     # v0.10: follow-up alerts
     srv = ThreadingHTTPServer((args.host, args.port), Handler)
 
     cert, key, host_hint = _find_certs(args.certfile, args.keyfile)
@@ -3078,6 +3355,9 @@ def main(argv=None) -> int:
         print("             (mic blocked on plain http — see README, or add "
               "certs/ for https)")
     print(f"  token    : {TOKEN}")
+    _on, _ver = mbb_ext.mainbox_online()
+    print(f"  MaINbox  : {'online v' + _ver if _on else 'not running'}  "
+          f"(bridge: {mbb_ext.BRIDGE_DIR})")
     _xrv = getattr(xr, "__version__", "?") if xr else "missing"
     print(f"  toolkit  : parser={'OK' if xc else 'missing'} "
           f"dispatch={'OK' if xd else 'missing'} "

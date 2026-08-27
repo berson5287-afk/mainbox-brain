@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0e14">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>MaINbox Voice</title>
+<style>
+  :root{
+    --bg:#0a0e14; --panel:#0d1b2a; --panel2:#111a26; --edge:#1c2b3a;
+    --blue:#1e88e5; --blue-dim:#155a97; --green:#00e676; --green-dim:#0f7a45;
+    --text:#e6edf3; --muted:#8aa0b3; --red:#ff5252; --amber:#ffb300;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    display:flex;flex-direction:column;height:100dvh;overflow:hidden;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  header{
+    display:flex;align-items:center;gap:10px;padding:12px 16px;
+    background:linear-gradient(180deg,var(--panel),transparent);
+    border-bottom:1px solid var(--edge);flex:0 0 auto;
+  }
+  header .logo{width:26px;height:26px;border-radius:7px;background:var(--panel2);
+    border:1.5px solid var(--blue);display:flex;align-items:center;justify-content:center}
+  header .logo b{color:var(--green);font-size:15px}
+  header h1{font-size:17px;margin:0;font-weight:650;letter-spacing:.3px;flex:1}
+  header .dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:0 0 auto}
+  header .dot.ok{background:var(--green);box-shadow:0 0 8px var(--green)}
+  header .dot.bad{background:var(--red)}
+  .iconbtn{background:none;border:none;color:var(--muted);font-size:20px;padding:6px;cursor:pointer}
+  .iconbtn:active{color:var(--text)}
+
+  /* tabs */
+  .tabs{display:flex;flex:0 0 auto;border-bottom:1px solid var(--edge);background:var(--panel)}
+  .tabs button{flex:1;background:none;border:none;color:var(--muted);padding:11px 4px;
+    font-size:13px;font-weight:600;cursor:pointer;border-bottom:2.5px solid transparent}
+  .tabs button.active{color:var(--text);border-bottom-color:var(--blue)}
+  .tabs button .badge{display:inline-block;min-width:16px;padding:0 4px;margin-left:4px;
+    background:var(--red);color:#fff;border-radius:9px;font-size:11px;line-height:16px}
+
+  main{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 14px 4px}
+  .view{display:none} .view.active{display:block}
+
+  /* transcript / results feed */
+  .msg{margin:8px 0;padding:11px 13px;border-radius:12px;line-height:1.4;font-size:15px;white-space:pre-wrap;word-break:break-word}
+  .msg.you{background:var(--blue-dim);align-self:flex-end;margin-left:36px}
+  .msg.bot{background:var(--panel2);border:1px solid var(--edge);margin-right:36px}
+  .msg.sys{background:transparent;color:var(--muted);font-size:13px;text-align:center;padding:4px}
+  .msg.heard{background:transparent;color:var(--blue);font-size:14px;font-style:italic;padding:4px 8px}
+
+  /* result rows */
+  .result{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;margin:6px 0;
+    background:var(--panel2);border:1px solid var(--edge);border-radius:11px}
+  .result .num{flex:0 0 auto;width:24px;height:24px;border-radius:6px;background:var(--panel);
+    border:1px solid var(--blue);color:var(--blue);font-weight:700;font-size:13px;
+    display:flex;align-items:center;justify-content:center}
+  .result .body{flex:1;min-width:0}
+  .result .part{font-weight:650;font-size:15px}
+  .result .part .brand{color:var(--green)}
+  .result .meta{color:var(--muted);font-size:12px;margin-top:2px}
+  .result .acts{display:flex;gap:6px;flex:0 0 auto}
+  .result.confirmed{border-color:var(--green-dim)}
+  .result.rejected{opacity:.45}
+  .chip{border:none;border-radius:8px;padding:6px 9px;font-size:13px;font-weight:600;cursor:pointer;color:#fff}
+  .chip.ok{background:var(--green-dim)} .chip.no{background:#7a2020}
+  .tag{font-size:11px;padding:1px 6px;border-radius:6px;margin-left:6px}
+  .tag.ok{background:var(--green-dim);color:#dfffe9} .tag.no{background:#7a2020;color:#ffdede}
+
+  /* event cards */
+  .event{padding:12px;margin:8px 0;background:var(--panel2);border:1px solid var(--edge);border-radius:12px}
+  .event .t{font-weight:650;font-size:15px}
+  .event .when{color:var(--green);font-size:13px;margin:3px 0}
+  .event .src{color:var(--muted);font-size:12px}
+  .event .row{display:flex;gap:8px;margin-top:9px}
+  .btn{border:none;border-radius:10px;padding:10px 14px;font-size:14px;font-weight:650;cursor:pointer}
+  .btn.primary{background:var(--blue);color:#fff}
+  .btn.ghost{background:var(--panel);color:var(--text);border:1px solid var(--edge)}
+  a.btn{text-decoration:none;display:inline-block;text-align:center}
+
+  /* notifications */
+  .notif{padding:12px;margin:8px 0;background:var(--panel2);border-left:3px solid var(--blue);
+    border-radius:8px}
+  .notif .nt{font-weight:650} .notif .nb{color:var(--muted);font-size:13px;margin-top:3px}
+  .notif .ntime{color:var(--muted);font-size:11px;margin-top:4px}
+
+  /* mic bar */
+  .micbar{flex:0 0 auto;padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+    background:linear-gradient(0deg,var(--panel),transparent);border-top:1px solid var(--edge)}
+  .status{text-align:center;color:var(--muted);font-size:13px;height:18px;margin-bottom:8px}
+  .status.live{color:var(--green)}
+  .miccontrols{display:flex;align-items:center;gap:12px}
+  .textin{flex:1;background:var(--panel2);border:1px solid var(--edge);border-radius:22px;
+    color:var(--text);padding:11px 16px;font-size:15px;outline:none}
+  .mic{flex:0 0 auto;width:60px;height:60px;border-radius:50%;border:none;cursor:pointer;
+    background:radial-gradient(circle at 30% 30%,var(--green),var(--green-dim));
+    display:flex;align-items:center;justify-content:center;font-size:26px;
+    box-shadow:0 4px 16px rgba(0,230,118,.35);transition:transform .1s}
+  .mic:active{transform:scale(.94)}
+  .mic.listening{background:radial-gradient(circle at 30% 30%,var(--red),#7a2020);
+    animation:pulse 1.3s infinite;box-shadow:0 0 0 0 rgba(255,82,82,.6)}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,82,82,.5)}
+    70%{box-shadow:0 0 0 18px rgba(255,82,82,0)}100%{box-shadow:0 0 0 0 rgba(255,82,82,0)}}
+  .send{flex:0 0 auto;width:46px;height:46px;border-radius:50%;border:none;background:var(--blue);
+    color:#fff;font-size:20px;cursor:pointer}
+
+  /* listen mode big button */
+  .listenwrap{text-align:center;padding:30px 10px}
+  .biglisten{width:150px;height:150px;border-radius:50%;border:3px solid var(--edge);
+    background:var(--panel2);color:var(--text);font-size:16px;font-weight:650;cursor:pointer;margin:10px auto}
+  .biglisten.on{border-color:var(--red);color:var(--red);animation:pulse 1.4s infinite}
+  .livetext{min-height:60px;margin:14px 0;padding:12px;background:var(--panel2);
+    border:1px dashed var(--edge);border-radius:10px;color:var(--muted);font-size:14px;text-align:left}
+
+  /* rfq */
+  .vchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .vchip{border:1px solid var(--edge);background:var(--panel2);color:var(--muted);
+    border-radius:14px;padding:5px 11px;font-size:13px;cursor:pointer}
+  .vchip.on{border-color:var(--green);color:var(--green)}
+  .previewbox{margin-top:12px;background:var(--panel2);border:1px solid var(--blue-dim);
+    border-radius:11px;overflow:hidden}
+  .previewbox .pvhead{display:flex;align-items:center;justify-content:space-between;
+    padding:9px 12px;border-bottom:1px solid var(--edge);font-weight:650;font-size:14px;color:var(--blue)}
+  .previewbox pre{margin:0;padding:12px;font-size:13px;white-space:pre-wrap;
+    word-break:break-word;color:var(--text);font-family:ui-monospace,Consolas,monospace;max-height:300px;overflow-y:auto}
+  .previewbox .x{background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer}
+  .tl{margin:8px 0 4px;border-top:1px solid var(--edge);padding-top:8px}
+  .tlrow{display:flex;gap:8px;padding:4px 0;font-size:13px;align-items:baseline}
+  .tlrow .tev{flex:0 0 auto;color:var(--green);font-weight:650;min-width:78px}
+  .tlrow .tev.q{color:var(--amber)} .tlrow .tev.f{color:var(--red)}
+  .tlrow .tev.n{color:var(--blue)}
+  .tlrow .tdet{flex:1;min-width:0;color:var(--muted);word-break:break-word}
+  .tlrow .twhen{flex:0 0 auto;color:var(--muted);font-size:11px}
+  .noterow{display:flex;gap:7px;margin-top:8px}
+  .noterow input{flex:1;background:var(--panel);border:1px solid var(--edge);border-radius:9px;
+    color:var(--text);padding:8px 11px;font-size:13px;outline:none}
+  .lineadd{display:flex;gap:7px;margin:8px 0;align-items:center}
+  .lineadd input{background:var(--panel2);border:1px solid var(--edge);border-radius:10px;
+    color:var(--text);padding:11px 12px;font-size:15px;outline:none}
+  #lnQty{width:62px;flex:0 0 auto;text-align:center}
+  #lnPart{flex:1;min-width:0}
+  .linemic{flex:0 0 auto;width:44px;height:44px;border-radius:50%;border:none;cursor:pointer;
+    background:var(--panel2);border:1.5px solid var(--green);color:var(--green);font-size:18px}
+  .linemic.listening{background:var(--red);border-color:var(--red);color:#fff;animation:pulse 1.3s infinite}
+  .rfqline{display:flex;gap:10px;align-items:center;padding:9px 12px;margin:5px 0;
+    background:var(--panel2);border:1px solid var(--edge);border-radius:10px}
+  .rfqline .q{flex:0 0 auto;color:var(--green);font-weight:700;min-width:44px}
+  .rfqline .p{flex:1;min-width:0;font-size:15px}
+  .rfqline .x{flex:0 0 auto;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px 8px}
+  .rfqcard{padding:10px 12px;margin:6px 0;background:var(--panel2);border:1px solid var(--edge);border-radius:10px;font-size:14px;position:relative}
+  .rfqcard .rs.draft{background:#6b5410;color:#ffe9b0}
+  .rfqcard .rs.deleted{background:#3a3f4a;color:#c8cdd8}
+  .rfqcard.del{opacity:.6}
+  .rfqcard .rxdel{position:absolute;top:6px;right:6px;background:none;border:none;color:#8a93a5;font-size:15px;padding:4px 9px;cursor:pointer}
+  .rfqcard .rsend{display:block;margin-top:8px;background:var(--green-dim);color:#dfffe9;border:none;border-radius:8px;padding:8px 16px;font-size:14px;cursor:pointer}
+  .rfqcard .rsend:disabled{opacity:.5}
+  .delhead{margin:16px 4px 6px;color:#8a93a5;font-size:14px;cursor:pointer;user-select:none}
+  .notifbar{display:flex;justify-content:flex-end;padding:2px 0 8px}
+  .notifbar button{background:#2a3140;color:#c8cdd8;border:none;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer}
+  .pastebox{width:100%;min-height:130px;margin-top:10px;background:#0d1117;border:1px solid var(--edge);border-radius:10px;color:var(--ink);font-size:14px;padding:10px;box-sizing:border-box}
+  .notif{position:relative}
+  .notif .clearbig{display:block;width:100%;margin-top:10px;background:#5a1f1f;color:#ffd7d7;border:none;border-radius:9px;padding:11px;font-size:15px}
+  .pvblock{margin-top:10px;padding:10px;background:#0d1117;border:1px solid var(--edge);border-radius:9px;font-size:13px;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow:auto}
+  .sheetback{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:60;display:flex;align-items:flex-end}
+  .sheet{width:100%;background:var(--panel);border-radius:16px 16px 0 0;padding:10px 12px 22px}
+  .sheettitle{text-align:center;color:#8a93a5;font-size:13px;padding:6px 0 10px}
+  .sheetbtn{display:block;width:100%;margin:6px 0;padding:13px;font-size:16px;border:none;border-radius:11px;background:var(--panel2);color:var(--ink)}
+  .sheetbtn.danger{background:#5a1f1f;color:#ffd7d7}
+  .sheetbtn.cancel{background:transparent;color:#8a93a5}
+  .notif .nx{position:absolute;top:6px;right:6px;background:none;border:none;color:#8a93a5;font-size:14px;padding:4px 9px;cursor:pointer}
+  .rfqcard .rr{color:var(--blue);font-weight:650}
+  .rfqcard .rs{float:right;font-size:12px;padding:1px 7px;border-radius:6px}
+  .rfqcard .rs.sent{background:var(--green-dim);color:#dfffe9}
+  .rfqcard .rs.queued{background:#6b5410;color:#ffe9b0}
+  .rfqcard .rm{color:var(--muted);font-size:12px;margin-top:3px}
+
+  /* settings */
+  .field{margin:14px 0}
+  .field label{display:block;color:var(--muted);font-size:13px;margin-bottom:6px}
+  .field input[type=text],.field input[type=url],.field input[type=password]{width:100%;
+    background:var(--panel2);border:1px solid var(--edge);border-radius:10px;color:var(--text);
+    padding:11px 13px;font-size:15px;outline:none}
+  .field .row{display:flex;align-items:center;gap:10px}
+  .switch{display:flex;align-items:center;justify-content:space-between;padding:10px 0}
+  .switch input{width:44px;height:26px;appearance:none;background:var(--edge);border-radius:14px;position:relative;cursor:pointer;outline:none}
+  .switch input:checked{background:var(--green-dim)}
+  .switch input::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.15s}
+  .switch input:checked::after{left:21px}
+  input[type=range]{width:100%}
+  .hint{color:var(--muted);font-size:12px;margin-top:6px;line-height:1.4}
+  .empty{color:var(--muted);text-align:center;padding:40px 20px;font-size:14px;line-height:1.5}
+
+  /* v0.10: source cards ("where did that come from") */
+  .srcwrap{margin:4px 0 10px 0;padding-left:4px}
+  .srchead{color:var(--muted);font-size:12px;margin:2px 0 4px}
+  .src{padding:9px 12px;margin:5px 0;background:var(--panel2);border:1px solid var(--edge);
+    border-left:3px solid var(--green);border-radius:10px;cursor:pointer}
+  .src:active{background:var(--panel)}
+  .src.dead{border-left-color:var(--muted);opacity:.7;cursor:default}
+  .src .st{font-weight:650;font-size:14px;color:var(--green)}
+  .src .ss{font-size:14px;margin-top:2px}
+  .src .sm{color:var(--muted);font-size:12px;margin-top:2px}
+
+  /* v0.10: follow-ups */
+  .fubar{display:flex;align-items:center;gap:8px;padding:2px 0 8px}
+  .fustatus{flex:1;font-size:12px;color:var(--muted)} .fustatus.on{color:var(--green)}
+  .fubar button{background:#2a3140;color:#c8cdd8;border:none;border-radius:8px;padding:6px 12px;font-size:15px;cursor:pointer}
+  .fuform{background:var(--panel2);border:1px solid var(--edge);border-radius:12px;padding:10px 12px;margin-bottom:12px}
+  .fuwhen{background:var(--panel);border:1px solid var(--edge);border-radius:10px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;box-sizing:border-box}
+  .fuquick{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+  .fuq{border:1px solid var(--edge);background:var(--panel);color:var(--muted);border-radius:14px;padding:5px 10px;font-size:12px;cursor:pointer}
+  .fuq:active{color:var(--green);border-color:var(--green)}
+  .fulink{margin-top:8px;font-size:12px;color:var(--blue);word-break:break-word}
+  .fupick{background:var(--panel2);border:1px solid var(--blue-dim);border-radius:12px;padding:10px 12px;margin-bottom:12px}
+  .fu{padding:10px 12px;margin:6px 0;background:var(--panel2);border:1px solid var(--edge);border-left:3px solid var(--blue);border-radius:10px;cursor:pointer}
+  .fu.soon{border-left-color:var(--amber)} .fu.over{border-left-color:var(--red)}
+  .fu:active{background:var(--panel)}
+  .futop{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .fudue{font-weight:700;font-size:13px;color:var(--green)} .fu.over .fudue{color:var(--red)} .fu.soon .fudue{color:var(--amber)}
+  .fukind{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.3px}
+  .fusub{font-size:15px;margin-top:3px;word-break:break-word}
+  .fumeta{color:var(--muted);font-size:12px;margin-top:2px;word-break:break-word}
+  .tabs button{padding:11px 2px;font-size:12.5px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><b>M</b></div>
+  <h1>MaINbox Voice</h1>
+  <div id="conn" class="dot" title="connection"></div>
+  <button class="iconbtn" id="btnStop" title="Stop speaking">&#9632;</button>
+</header>
+
+<div class="tabs">
+  <button data-view="chat" class="active">Ask</button>
+  <button data-view="rfq">RFQ</button>
+  <button data-view="listen">Listen</button>
+  <button data-view="notifs">Alerts<span id="notifBadge" class="badge" style="display:none">0</span></button>
+  <button data-view="followups">Follow-ups<span id="fuBadge" class="badge" style="display:none">0</span></button>
+  <button data-view="settings" title="Settings">&#9881;</button>
+</div>
+
+<main>
+  <!-- ASK -->
+  <section id="view-chat" class="view active">
+    <div id="feed"></div>
+  </section>
+
+  <!-- RFQ -->
+  <section id="view-rfq" class="view">
+    <div class="field">
+      <label>Job / customer</label>
+      <input type="text" id="rfqJob" placeholder="e.g. Maple St Panel Upgrade">
+    </div>
+    <div class="field">
+      <label>Vendor emails (comma for multiple — one RFQ, one email each)</label>
+      <input type="text" id="rfqVendor" list="vendorList" placeholder="quotes@graybar.com, rfq@rexel.com" inputmode="email" autocapitalize="off">
+      <datalist id="vendorList"></datalist>
+      <div id="vendorChips" class="vchips"></div>
+    </div>
+
+    <label style="color:var(--muted);font-size:13px">Line items</label>
+    <div id="rfqLines"></div>
+    <div class="lineadd">
+      <input type="text" id="lnQty" placeholder="qty" inputmode="decimal">
+      <input type="text" id="lnPart" placeholder="part / description">
+      <button id="lnMic" class="linemic" title="Say a line">&#127908;</button>
+      <button id="lnAdd" class="chip ok" style="padding:10px 14px">Add</button>
+    </div>
+    <div class="hint" id="lnStatus">Tap the small mic and say a line — it fills the boxes for your review, then tap Add.</div>
+
+    <div class="field" style="margin-top:16px">
+      <label>Note to vendor (optional)</label>
+      <input type="text" id="rfqNote" placeholder="e.g. need by Friday">
+    </div>
+
+    <div style="display:flex;gap:10px">
+      <button id="rfqPreviewBtn" class="btn ghost" style="flex:1;padding:14px">Preview</button>
+      <button id="rfqSend" class="btn primary" style="flex:2;padding:14px">Send RFQ</button>
+    </div>
+    <div id="rfqPreview" class="previewbox" style="display:none">
+      <div class="pvhead"><span id="pvSubject"></span><button class="x" id="pvClose">✕</button></div>
+      <pre id="pvBody"></pre>
+    </div>
+    <div id="rfqResult" class="hint" style="margin-top:10px"></div>
+
+    <hr style="border-color:var(--edge);margin:20px 0">
+    <label style="color:var(--muted);font-size:13px">Recent RFQs</label>
+    <div id="rfqRecent"><div class="empty" style="padding:16px">None yet.</div></div>
+  </section>
+
+  <!-- LISTEN -->
+  <section id="view-listen" class="view">
+    <div class="listenwrap">
+      <p class="hint" style="text-align:center">Turn on speakerphone (or dictate after a call). Listen Mode transcribes and pulls out any dates &amp; times, then lets you add them to your calendar with one tap.</p>
+      <button id="bigListen" class="biglisten">Start<br>Listening</button>
+      <div id="liveText" class="livetext">Transcript will appear here…</div>
+      <button id="extractBtn" class="btn primary" style="display:none">Find calendar events</button>
+      <button id="loadCallBtn" class="btn" style="margin-top:10px">Load last call</button>
+      <button id="pasteBtn" class="btn" style="margin-top:10px">Paste a call transcript…</button>
+      <textarea id="pasteBox" class="pastebox" style="display:none" placeholder="Paste the transcript from your phone's call recording here, then tap Use transcript."></textarea>
+      <button id="pasteUse" class="btn primary" style="display:none">Use transcript</button>
+    </div>
+    <div id="eventList"></div>
+  </section>
+
+  <!-- ALERTS -->
+  <section id="view-notifs" class="view">
+    <div class="notifbar"><button id="notifClear">Clear all</button></div>
+    <div id="notifList"><div class="empty">No alerts yet.<br>MaINbox can push RFQ and reminder alerts here.</div></div>
+  </section>
+
+  <!-- FOLLOW-UPS (v0.10: live mirror of MaINbox's follow-up queue) -->
+  <section id="view-followups" class="view">
+    <div class="fubar">
+      <span id="fuStatus" class="fustatus off">○ not synced yet</span>
+      <button id="fuRefresh" title="Sync now">&#8635;</button>
+    </div>
+    <div class="fuform">
+      <div class="lineadd">
+        <input type="text" id="fuNote" placeholder="New follow-up… e.g. call George about the panel" style="flex:1;min-width:0">
+        <button id="fuMic" class="linemic" title="Say it">&#127908;</button>
+      </div>
+      <input type="text" id="fuWhen" placeholder="when — tomorrow 9am · friday 3pm · in 2 hours · 9/2" style="width:100%;margin-top:7px" class="fuwhen">
+      <div class="fuquick">
+        <button class="fuq" data-when="in 1 hour">+1h</button>
+        <button class="fuq" data-when="in 3 hours">+3h</button>
+        <button class="fuq" data-when="tomorrow 9am">Tmrw 9am</button>
+        <button class="fuq" data-when="tomorrow 2pm">Tmrw 2pm</button>
+        <button class="fuq" data-when="monday 9am">Mon 9am</button>
+        <button class="fuq" data-when="next week">Next wk</button>
+      </div>
+      <div id="fuLinkLabel" class="fulink" style="display:none"></div>
+      <input type="hidden" id="fuLink">
+      <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+        <button id="fuCreate" class="btn primary" style="flex:1;padding:12px">Add to MaINbox</button>
+        <button id="fuLinkClear" class="btn ghost" title="Unlink email" style="padding:12px">⛓</button>
+      </div>
+      <div id="fuMsg" class="hint"></div>
+    </div>
+    <div id="fuPickBox" class="fupick" style="display:none">
+      <div id="fuPickTitle" class="hint"></div>
+      <input type="text" id="fuPickWhen" placeholder="e.g. 3pm · tomorrow 10am · 9/2 9am" class="fuwhen" style="width:100%;margin-top:6px">
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button id="fuPickGo" class="btn primary" style="flex:1">Snooze</button>
+        <button id="fuPickCancel" class="btn ghost">Cancel</button>
+      </div>
+    </div>
+    <div id="fuList"><div class="empty">No follow-ups synced yet.</div></div>
+    <p class="hint" style="text-align:center;margin-top:14px">Tap a follow-up to snooze, complete, edit, read its email, or cancel. Everything is applied inside MaINbox on the PC.</p>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="view-settings" class="view">
+    <div class="field">
+      <label>Server URL (Brain PC)</label>
+      <input type="url" id="setUrl" placeholder="http://100.x.x.x:8770" inputmode="url" autocapitalize="off" autocomplete="off">
+      <div class="hint">Your Brain PC's Tailscale address and the voice server port.</div>
+    </div>
+    <div class="field">
+      <label>Access token</label>
+      <input type="password" id="setToken" placeholder="paste token" autocapitalize="off" autocomplete="off">
+      <div class="hint">Printed by the server at startup. Or open the phone URL it prints and this fills in automatically.</div>
+    </div>
+    <div class="field"><button class="btn primary" id="saveConn">Save &amp; test connection</button>
+      <span id="connMsg" class="hint"></span></div>
+
+    <hr style="border-color:var(--edge);margin:18px 0">
+
+    <div class="switch"><span>Speak answers aloud</span><input type="checkbox" id="setSpeak" checked></div>
+    <div class="switch"><span>Auto-listen after speaking</span><input type="checkbox" id="setAutoListen"></div>
+    <div class="switch"><span>Keep screen awake while listening</span><input type="checkbox" id="setWake" checked></div>
+
+    <div class="field">
+      <label>Speaking speed: <span id="rateVal">1.0×</span></label>
+      <input type="range" id="setRate" min="0.6" max="1.6" step="0.1" value="1.0">
+    </div>
+    <div class="field">
+      <label>Voice</label>
+      <div class="row"><select id="setVoice" style="flex:1;background:var(--panel2);color:var(--text);border:1px solid var(--edge);border-radius:10px;padding:10px"></select></div>
+    </div>
+
+    <hr style="border-color:var(--edge);margin:18px 0">
+    <div class="field"><button class="btn ghost" id="clearChat">Clear conversation on this phone</button>
+      <div class="hint">The conversation, results, RFQ draft, transcript and alerts are saved on the phone and come back after a reload or restart.</div></div>
+    <div class="field"><button class="btn ghost" id="installBtn" style="display:none">Add to home screen</button></div>
+    <p class="hint" id="ver"></p>
+  </section>
+</main>
+
+<div class="micbar" id="micbar">
+  <div id="status" class="status">Tap the mic and speak</div>
+  <div class="miccontrols">
+    <input type="text" id="textIn" class="textin" placeholder="Type or tap the mic…" enterkeyhint="send" autocapitalize="off">
+    <button id="micBtn" class="mic" title="Speak">&#127908;</button>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

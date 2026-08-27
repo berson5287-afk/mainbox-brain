@@ -19,6 +19,7 @@ product SQLite DB (the six-vendor catalog expansion) -- that already carries
 per-SKU vendor provenance, which is an even stronger signal than brand tags.
 """
 from __future__ import annotations
+import re
 from .models import Category, Manufacturer
 
 C = Category
@@ -166,11 +167,34 @@ def manufacturers_for_category(category: str) -> list[str]:
     return sorted(n for n, m in MANUFACTURERS.items() if category in m.categories)
 
 
+def _token_in(token: str, t: str) -> bool:
+    """Short tokens ("mc", "emt", "imc") must stand alone between non-letters,
+    so "mc" no longer fires on IMC conduit, 300 MCM, or kcmil (v0.9.1 -- one
+    mis-tagged 'IMC' RFQ was enough to pull a conduit house into every MC cable
+    proposal). Digits may touch ("122mc", "3/4emt"); letters may not."""
+    if len(token) > 4 or " " in token:
+        return token in t
+    return re.search(r"(?<![a-z])" + re.escape(token) + r"(?![a-z])", t) is not None
+
+
 def category_for_text(text: str) -> str:
-    """First-pass category inference from product text (no LLM)."""
+    """Category inference from product text (no LLM).
+
+    v0.11: the mined rules engine (material.py / material_rules.json) decides;
+    the small keyword table below is only the fallback if that engine cannot
+    load, so the Brain never goes blind."""
+    try:
+        from . import material
+        if material.available():
+            cat = material.classify_category(text)
+            if cat and cat != Category.UNKNOWN:
+                return cat
+            return Category.UNKNOWN
+    except Exception:  # noqa: BLE001
+        pass
     t = text.lower()
     for token, cat in KEYWORD_CATEGORY:
-        if token in t:
+        if _token_in(token, t):
             return cat
     return Category.UNKNOWN
 

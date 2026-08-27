@@ -364,6 +364,52 @@ class Store:
                 mv.vendor.contacts.insert(0, Contact(rec["name"], rec["email"]))
         return removed
 
+    # -- contact names ---------------------------------------------------------
+    @staticmethod
+    def _clean_person_name(raw: str) -> str:
+        """'Meuse, Anthony' -> 'Anthony Meuse'; ALLCAPS -> Title; emails -> ''."""
+        n = (raw or "").strip().strip('"')
+        if not n or "@" in n:
+            return ""
+        if "," in n:
+            last, first = [p.strip() for p in n.split(",", 1)]
+            n = f"{first} {last}".strip()
+        if n.isupper() or n.islower():
+            n = n.title()
+        return n
+
+    def refresh_contact_names(self) -> int:
+        """v0.9.1: the sent-mail miner names a contact from the greeting, else the
+        email local-part ("markh" -> "Markh"). Vendor REPLIES carry the real
+        display name ("Mark Huddle"); use the most frequent one whenever the
+        stored name is only the local-part. Returns how many rows changed."""
+        changed = 0
+        rows = self.db.execute("SELECT vendor_id, name, email FROM contacts").fetchall()
+        for vid, name, email in rows:
+            local = (email or "").split("@")[0].lower()
+            cur = (name or "").strip()
+            derived = (not cur or " " not in cur and
+                       re.sub(r"[^a-z0-9]", "", cur.lower()) in
+                       (re.sub(r"[^a-z0-9]", "", local), re.split(r"[._\-]", local)[0]))
+            if not derived:
+                continue
+            best = None
+            for fn, cnt in self.db.execute(
+                    "SELECT from_name, COUNT(*) FROM reply_records "
+                    "WHERE lower(from_email)=? AND from_name!='' "
+                    "GROUP BY from_name ORDER BY 2 DESC", (email.lower(),)):
+                cand = self._clean_person_name(fn)
+                if cand and " " in cand or (cand and cand.lower() != local):
+                    best = cand
+                    break
+            if best and best != cur:
+                self.db.execute("UPDATE contacts SET name=? WHERE vendor_id=? AND email=?",
+                                (best, vid, email))
+                changed += 1
+        if changed:
+            self.db.commit()
+        return changed
+
     # -- persisting a mining result -------------------------------------------
     def save_result(self, result: MiningResult) -> None:
         """Replace stored registry/records with this (corrected) result."""
@@ -392,6 +438,10 @@ class Store:
                  r.when.isoformat(timespec="seconds") if r.when else None,
                  json.dumps(r.items)))
         self.db.commit()
+        try:
+            self.refresh_contact_names()   # v0.9.1: real names from replies
+        except Exception:
+            pass
 
     # -- loading back -----------------------------------------------------------
     def load_vendors(self, confident_only: bool = True) -> dict[str, Vendor]:
@@ -659,7 +709,7 @@ class Store:
 
     def recent_replies(self, limit: int = 10) -> list[dict]:
         rows = self.db.execute(
-            "SELECT vendor_id, vendor_name, from_email, from_name, subject, received_at, items, facts, quote_status, confidence, counterparty_type "
+            "SELECT vendor_id, vendor_name, from_email, from_name, subject, received_at, items, facts, quote_status, confidence, counterparty_type, source_key "
             "FROM reply_records ORDER BY COALESCE(received_at,'') DESC LIMIT ?", (limit,)
         )
         return [self._reply_row_to_dict(row) for row in rows]
@@ -690,7 +740,7 @@ class Store:
         and/or product text.  Returns whole records (with their line-item facts),
         newest first."""
         rows = self.db.execute(
-            "SELECT vendor_id, vendor_name, from_email, from_name, subject, received_at, items, facts, quote_status, confidence, counterparty_type "
+            "SELECT vendor_id, vendor_name, from_email, from_name, subject, received_at, items, facts, quote_status, confidence, counterparty_type, source_key "
             "FROM reply_records WHERE counterparty_type='customer' "
             "ORDER BY COALESCE(received_at,'') DESC")
         cnorm = re.sub(r"[^a-z0-9]", "", (customer or "").lower())
@@ -716,7 +766,11 @@ class Store:
     def _reply_row_to_dict(self, row) -> dict:
         row = list(row)
         # tolerate rows with or without the trailing counterparty_type column
+        # (and, v0.9: the source_key that links an answer back to its email)
         ctype = "vendor"
+        source_key = ""
+        if len(row) >= 12:
+            source_key = row[11] or ""
         if len(row) >= 11:
             ctype = row[10] or "vendor"
             row = row[:10]
@@ -741,6 +795,9 @@ class Store:
             "status": quote_status or "info",
             "confidence": float(confidence or 0.0),
             "counterparty_type": ctype,
+            # the Outlook EntryID (or content hash) of the email this came
+            # from -- lets the phone show "the reference" for a price/stock
+            "source_key": source_key,
         }
 
     def find_replies(self, query: str, limit: int = 8, require_all: bool = True,
@@ -785,7 +842,7 @@ class Store:
         valias = self.vendor_aliases()      # {vendor_id: [alias, ...]}
         hits = []
         rows = self.db.execute(
-            "SELECT vendor_id, vendor_name, from_email, from_name, subject, received_at, items, facts, quote_status, confidence, counterparty_type "
+            "SELECT vendor_id, vendor_name, from_email, from_name, subject, received_at, items, facts, quote_status, confidence, counterparty_type, source_key "
             "FROM reply_records"
         )
         for row in rows:

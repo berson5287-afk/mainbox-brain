@@ -1,0 +1,29 @@
+# caches
+__pycache__/
+*.py[cod]
+# databases / mail exports / mined corpora -- never public
+*.db
+*.db-*
+*_export*.json
+sales_inbox.json
+steve_sent.json
+*.zip
+quote_files/
+sales_files/
+.xref_browser_profile/
+.xref_last_results.json
+# runtime state + secrets
+.voice_token
+voice_state.json
+settings.json
+contacts.json
+contact_aliases.json
+rfq_queue/
+call_transcripts/
+certs/
+*.key
+*.pem
+*.log
+*.bak
+*.bak_*
+MATERIAL_TAXONOMY_REPORT.md

@@ -349,7 +349,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200, {"kind": "answer", "session": sid,
                                  "message": answer,
                                  "pending": sess.pending is not None,
-                                 "done": sess.pending is None})
+                                 "done": sess.pending is None,
+                                 # v0.9: the emails this answer was built from
+                                 "sources": list(getattr(sess, "last_sources", []) or [])})
                 return
             qsid, convo = STATE.new_session()
             turn = convo.start(parse_request(text, STATE.llm))

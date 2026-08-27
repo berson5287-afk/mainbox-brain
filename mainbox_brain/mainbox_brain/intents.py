@@ -315,6 +315,53 @@ def _reply_detail(h: dict, *, want: str = "") -> str:
     return "; ".join(bits)
 
 
+# ---------------------------------------------------------------------------
+# v0.9 "show me the reference": every hit that contributes to a price / lead
+# time / stock answer is recorded here (thread-local, so concurrent /ask calls
+# never mix) so the caller can hand the phone structured source cards --
+# vendor, contact, subject, date, the fact, and the email's source_key -- in
+# addition to the prose answer.
+# ---------------------------------------------------------------------------
+import threading as _threading
+_SRC = _threading.local()
+
+
+def sources_reset() -> None:
+    _SRC.items = []
+
+
+def sources_get() -> list[dict]:
+    return list(getattr(_SRC, "items", []) or [])
+
+
+def _note_source(h: dict, role: str = "") -> None:
+    if not isinstance(h, dict):
+        return
+    items = getattr(_SRC, "items", None)
+    if items is None:
+        _SRC.items = items = []
+    key = h.get("source_key") or ""
+    # one card per email (the same message can supply several facts)
+    for it in items:
+        if key and it.get("key") == key:
+            if role and role not in it.get("roles", []):
+                it["roles"].append(role)
+            return
+    items.append({
+        "key": key,
+        "vendor": h.get("vendor") or "",
+        "from": h.get("from") or "",
+        "from_name": h.get("from_name") or "",
+        "subject": h.get("subject") or "",
+        "when": h.get("when") or "",
+        "item": h.get("item") or "",
+        "line": h.get("line") or "",
+        "detail": _reply_detail(h),
+        "po_number": h.get("po_number") or "",
+        "roles": [role] if role else [],
+    })
+
+
 def _reply_evidence_lines(hits: list[dict], limit: int = 5, *, want: str = "") -> list[str]:
     out = []
     for idx, h in enumerate(hits[:limit], 1):
@@ -333,6 +380,7 @@ def _reply_evidence_lines(hits: list[dict], limit: int = 5, *, want: str = "") -
             segs.append(po)
         segs.append(detail)
         out.append(f"{idx}. " + " — ".join(segs) + f" — evidence: {line} ({conf}% confidence)")
+        _note_source(h, "evidence")
     return out
 
 
@@ -449,6 +497,10 @@ def _price_answer(store, product: str, label: str, reply_hits: list[dict]) -> st
         customers = []
 
     lines = []
+    if lq:
+        _note_source(lq, "last quote")
+    if lo:
+        _note_source(lo, "last PO")
     if lq:
         seg = (f"Last quoted{_quote_context(lq, customers)} on {_fmt_date(lq.get('when'))} "
                f"from {lq.get('vendor')} at {_price_str(lq)}")
@@ -694,6 +746,10 @@ def _classify_llm(text: str, llm) -> Optional[Intent]:
     parsed = extract_json(raw) if raw else None
     if not isinstance(parsed, dict) or parsed.get("intent") not in _VALID_KINDS:
         return None
+    # v0.9.1: the router liked to call "set up a draft for Mark" an
+    # add_contact with no address -> "Saved Mark <>". No email, no contact.
+    if parsed["intent"] == INTENT_ADD_CONTACT and "@" not in str(parsed.get("email") or ""):
+        return None
     return Intent(parsed["intent"],
                   product=str(parsed.get("product") or ""),
                   vendor_text=str(parsed.get("vendor") or ""),
@@ -741,6 +797,9 @@ def answer_vendors_for(store, product: str, *, question: str = "", llm=None) -> 
 
 def do_add_contact(store, intent: Intent) -> str:
     import json as _json
+    if "@" not in (intent.email or ""):
+        return (f"To save {intent.name.title() or 'that contact'} I need an email "
+                f"address — say e.g. \"add {intent.name.title() or 'Name'} name@vendor.com\".")
     intent.tag = re.sub(r"^(?:the|my|our)\s+|\s*contact\s*$", "",
                         intent.tag.strip(), flags=re.IGNORECASE).strip()
     domain = intent.email.split("@", 1)[1].lower() if "@" in intent.email else ""
@@ -1157,6 +1216,7 @@ class InfoSession:
         self.last_customer = ""
         self.pending = None        # ("product", intent) | ("customer", alts, intent)
         self.pending_research = ""
+        self.last_sources: list[dict] = []   # v0.9: emails behind the last answer
         try:
             from .knowledge import Knowledge
             self.know = Knowledge(store.db)
@@ -1165,6 +1225,14 @@ class InfoSession:
 
     # -- public ------------------------------------------------------------
     def answer(self, text: str) -> Optional[str]:
+        sources_reset()
+        out = self._answer(text)
+        srcs = sources_get()
+        if out is not None and srcs:
+            self.last_sources = srcs
+        return out
+
+    def _answer(self, text: str) -> Optional[str]:
         raw = (text or "").strip()
         if not raw:
             return None
