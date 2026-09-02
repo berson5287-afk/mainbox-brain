@@ -139,7 +139,9 @@ def _com_message(key: str) -> dict | None:
     try:
         ol = win32com.client.Dispatch("Outlook.Application")
         ns = ol.GetNamespace("MAPI")
-        item = ns.GetItemFromID(key)
+        item = _get_item_any_store(ns, key)
+        if item is None:
+            return None
         sender_email = ""
         try:
             sender_email = item.SenderEmailAddress or ""
@@ -173,6 +175,35 @@ def _com_message(key: str) -> dict | None:
             pythoncom.CoUninitialize()
         except Exception:  # noqa: BLE001
             pass
+
+
+def _get_item_any_store(ns, key):
+    """v0.10.3 (audit): EntryIDs are STORE-scoped. Resolve against every store with
+    an explicit StoreID and accept only an exact EntryID match -- a Sales-store id
+    resolved against the default store can return an unrelated message (the same
+    bug fixed in the desktop viewer in v4.2.105). Falls back to the bare lookup
+    (verified) for providers that need it."""
+    try:
+        stores = ns.Stores
+        for i in range(1, int(stores.Count) + 1):
+            try:
+                it = ns.GetItemFromID(key, stores.Item(i).StoreID)
+            except Exception:
+                continue
+            try:
+                if it is not None and str(getattr(it, "EntryID", "") or "") == key:
+                    return it
+            except Exception:
+                continue
+    except Exception:
+        pass
+    try:
+        it = ns.GetItemFromID(key)
+        if it is not None and str(getattr(it, "EntryID", "") or "") == key:
+            return it
+    except Exception:
+        pass
+    return None
 
 
 def mail_get(key: str) -> dict:
@@ -216,7 +247,9 @@ def mail_open(key: str) -> dict:
     pythoncom.CoInitialize()
     try:
         ol = win32com.client.Dispatch("Outlook.Application")
-        item = ol.GetNamespace("MAPI").GetItemFromID(key)
+        item = _get_item_any_store(ol.GetNamespace("MAPI"), key)
+        if item is None:
+            return {"ok": False, "error": "that email isn't in any open Outlook mailbox any more"}
         item.Display()
         try:
             item.GetInspector.Activate()
@@ -650,7 +683,12 @@ class DueWatcher(threading.Thread):
                 title = f"⏰ Follow-up due: {(it.get('subject') or it.get('note') or '')[:70]}"
                 body = ((who + " — ") if who else "") + (it.get("note") or "")[:160]
                 self.push(title, body, kind="followup", ref=it.get("id"))
-        # forget keys that vanished (completed/cancelled/snoozed)
+        # forget keys that vanished (completed/cancelled/snoozed).
+        # v0.10.3 (audit): NEVER purge on an empty/unreadable snapshot -- a torn
+        # read or a MaINbox restart before its first publish would reset every
+        # backoff and re-fire the whole overdue list (the "65 alerts" storm).
+        if not (snap.get("items") or []) or not snap.get("published_at"):
+            return
         live = {f"{i.get('id')}|{i.get('due')}" for i in (snap.get("items") or [])}
         for k in list(self.fired):
             if k not in live:

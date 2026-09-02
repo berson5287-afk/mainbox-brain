@@ -1,4 +1,19 @@
-# MaINbox Voice — v0.10.2 · Brain v0.11
+# MaINbox Voice — v0.10.3 · Brain v0.11
+
+## v0.10.3 — security + audit fixes (2026-09-02)
+**SECURITY:** the static file handler resolved drive-absolute request paths
+(`GET /C:/...`) outside `www/` with no token — any file on the PC was readable
+from the tailnet. Fixed with absolute-path/colon rejection plus a commonpath
+containment check (verified: 400 now, PWA unaffected). Also from the audit:
+the due-alert watcher no longer resets its backoff on an empty/torn snapshot
+(no re-storms); `mail_get`/`mail_open` resolve EntryIDs against every Outlook
+store and require an exact EntryID match (Sales-mailbox emails now open, and a
+wrong-store id can never show a stranger's mail); the bridge adapter (1.0.2)
+never truncates a file in place when a rename is blocked (stale beats torn);
+the PWA replays past one corrupt feed entry, separates display errors from
+"offline", caps the saved conversation by bytes, and a token link from a new
+server now updates the server URL too.
+
 
 ## v0.10.2 — server state moved out of OneDrive; alert nudges tamed (2026-08-27)
 `voice_state.json` now lives in `%LOCALAPPDATA%\MaINbox\` (OneDrive held a lock

@@ -46,6 +46,11 @@ function persistSoon() { if (_persistTimer) return;
   _persistTimer = setTimeout(persistNow, 250); }
 function persistNow() {
   if (_persistTimer) { clearTimeout(_persistTimer); _persistTimer = null; }
+  // v0.10.3 (audit): cap the feed by BYTES, not entries -- big result/source
+  // entries could brush the localStorage quota and silently kill every save.
+  try {
+    while (FEED.length > 5 && JSON.stringify(FEED).length > 2000000) FEED.splice(0, 10);
+  } catch (e) {}
   LS.set('mbb_feed', FEED);
   LS.set('mbb_ui', UI);
   try { LS.set('mbb_listen', { buffer: listenBuffer || '' }); } catch (e) {}
@@ -60,7 +65,9 @@ window.addEventListener('beforeunload', persistNow);
 (function grabToken() {
   const p = new URLSearchParams(location.search);
   const t = p.get('token');
-  if (t) { S.token = t; if (!S.url) S.url = location.origin; save();
+  // v0.10.3 (audit): a token link from a NEW server must also update the base
+  // URL, or every call 401s against the old server with the new token.
+  if (t) { S.token = t; if (location.origin.startsWith('http')) S.url = location.origin; save();
     history.replaceState({}, '', location.pathname); }
 })();
 
@@ -91,7 +98,7 @@ function setConn(ok) { const c = $('conn');
  * ====================================================================== */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recog = null, recognizing = false, recogMode = null; // 'ask' | 'listen'
-const APP_VERSION = '0.10.0';
+const APP_VERSION = '0.10.3';
 console.log('MaINbox Voice app v' + APP_VERSION);
 let listenBuffer = '';
 let listenSession = '';
@@ -290,12 +297,14 @@ async function sendQuery(text) {
     const d = await apiJSON('/api/query', { method: 'POST',
       body: JSON.stringify({ text }) });
     setConn(true);
-    if (d.reply) addMsg('bot', d.reply);
-    handleActionExtras(d);
-    if (d.results && d.results.length) renderResults(d.results);
-    if (d.sources && d.sources.length) renderSources(d.sources);
-    if (d.events && d.events.length) renderFeedEvents(d.events);
-    if (d.speak) speak(d.speak);
+    try {                                  // v0.10.3: render errors are not "offline"
+      if (d.reply) addMsg('bot', d.reply);
+      handleActionExtras(d);
+      if (d.results && d.results.length) renderResults(d.results);
+      if (d.sources && d.sources.length) renderSources(d.sources);
+      if (d.events && d.events.length) renderFeedEvents(d.events);
+      if (d.speak) speak(d.speak);
+    } catch (re) { addMsg('sys', 'Display error: ' + re); }
     setStatus('Tap the mic and speak');
   } catch (e) {
     setConn(false);
@@ -440,15 +449,15 @@ function renderSources(srcs) {
 /* v0.10: bring the conversation back exactly as it was */
 function replayFeed() {
   replaying = true;
-  try {
-    FEED.forEach((e) => {
+  FEED.forEach((e) => {
+    try {                                  // v0.10.3: per-entry -- one bad entry must not drop the rest
       if (e.k === 'msg') addMsg(e.c, e.t);
       else if (e.k === 'results') renderResults(e.rows || []);
       else if (e.k === 'events') (e.events || []).forEach((ev) =>
         $('feed').appendChild(eventCard(ev)));
       else if (e.k === 'sources') renderSources(e.sources || []);
-    });
-  } catch (err) { /* a bad entry must never block boot */ }
+    } catch (err) { /* skip this entry */ }
+  });
   replaying = false;
   scrollFeed();
 }

@@ -1,7 +1,7 @@
 // MaINbox Voice service worker — minimal offline shell.
 // We deliberately do NOT cache /api/* (always live). Static shell is
 // network-first so updates land immediately when the phone is on Tailscale.
-const CACHE = 'mbb-voice-v13';
+const CACHE = 'mbb-voice-v14';
 const SHELL = ['./', './index.html', './app.js', './manifest.webmanifest',
                './icon-192.png', './icon-512.png'];
 

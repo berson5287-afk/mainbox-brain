@@ -62,7 +62,7 @@ from collections import deque
 from urllib.parse import urlparse, parse_qs, quote
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-__version__ = "0.10.2"  # state in LOCALAPPDATA, due-nudge backoff; RFQ follow-up fixes (item memory, ask-for-item, real contact names); email references ("show me the email"), MaINbox follow-up sync, durable alerts/session, due-alert watcher
+__version__ = "0.10.3"  # SECURITY: static handler path containment (audit finding); state in LOCALAPPDATA, due-nudge backoff; RFQ follow-up fixes (item memory, ask-for-item, real contact names); email references ("show me the email"), MaINbox follow-up sync, durable alerts/session, due-alert watcher
 
 log = logging.getLogger("mbb_voice")
 
@@ -1662,7 +1662,7 @@ def _load_contact_aliases() -> dict:
 
 
 def _save_contact_alias(phrase: str, email: str) -> None:
-    """'pipe and wire' -> quotes@example-vendor.com. Learned from
+    """'pipe and wire' -> pipeandwirequotes@theaenterprises.com. Learned from
     explicit teaching or from the user answering a which-one question."""
     a = _load_contact_aliases()
     a[(phrase or "").strip().lower()] = (email or "").strip().lower()
@@ -1930,7 +1930,7 @@ def _contact_index() -> dict:
     # history) rank ahead of cold address-book entries with the same name.
     # Produced by export_contacts.py on the Outlook PC.  Gives the resolver
     # real display names ("Dattilo, Nicholas") so "nick at hubbell" lands on
-    # ndattilo@example-vendor.com even though that contact never appeared in RFQ
+    # ndattilo@hubbell.com even though that contact never appeared in RFQ
     # traffic.  Override the path with MBB_CONTACTS.
     _cpath = os.environ.get("MBB_CONTACTS",
                             os.path.join(_BASE, "contacts.json"))
@@ -2368,7 +2368,7 @@ def handle_query(text: str) -> dict:
         # anything else: fall through as a normal request
 
     # "when I say pipe and wire use pipeandwirequotes@thea..." /
-    # "remember thea is quotes@example-vendor.com"
+    # "remember thea is pipeandwirequotes@theaenterprises.com"
     _al = re.search(r"\b(?:when(?:ever)? i say|call)\s+(.{2,40}?)\s+"
                     r"(?:use|it means|means|is|=)\s+([\w.+-]+@[\w.-]+)\b",
                     text or "", re.IGNORECASE) or \
@@ -3062,11 +3062,20 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "unknown endpoint"}, 404)
 
         # ---- static PWA files ----------------------------------------------
+        # v0.10.3 SECURITY (audit): os.path.join(WWW_DIR, "C:\\...") DISCARDS
+        # WWW_DIR when the request path is drive-absolute, so GET /C:/Windows/...
+        # served any file on the machine with no token. Reject absolute paths and
+        # drive colons outright, then confirm the resolved path stays inside www/.
         rel = "index.html" if path in ("/", "") else path.lstrip("/")
         rel = os.path.normpath(rel)
-        if rel.startswith(".."):
+        if rel.startswith("..") or os.path.isabs(rel) or ":" in rel or rel.startswith("\\"):
             return self._json({"error": "bad path"}, 400)
-        full = os.path.join(WWW_DIR, rel)
+        full = os.path.abspath(os.path.join(WWW_DIR, rel))
+        try:
+            if os.path.commonpath([os.path.abspath(WWW_DIR), full]) != os.path.abspath(WWW_DIR):
+                return self._json({"error": "bad path"}, 400)
+        except ValueError:
+            return self._json({"error": "bad path"}, 400)
         if not os.path.isfile(full):
             return self._json({"error": "not found"}, 404)
         ext = os.path.splitext(full)[1].lower()
